@@ -218,8 +218,8 @@ export const updateMyProfile = asyncHandler(async (req, res, next) => {
     user.phone = phone ?? user.phone;
 
     if (profilePic) {
-      const { image } = req;
-      const result = await cloudinary.imageUploader(image, profilePic);
+      const { file } = req;
+      const result = await cloudinary.imageUploader(file, profilePic);
       user.profilePic[0] = result
         ? {
           asset_id: result.public_id,
@@ -231,8 +231,8 @@ export const updateMyProfile = asyncHandler(async (req, res, next) => {
     }
 
     if (backgroundImage) {
-      const { image } = req;
-      const result = await cloudinary.imageUploader(image, backgroundImage);
+      const { file } = req;
+      const result = await cloudinary.imageUploader(file, backgroundImage);
       user.backgroundImage[0] = result
         ? {
           asset_id: result.public_id,

@@ -9,6 +9,7 @@ import cookieSession from 'cookie-session';
 import passport from 'passport';
 import cors from 'cors';
 import userRoutes from './routes/usersRoutes.js';
+import postRoutes from './routes/postsRoutes.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use(cors({
 
 // define routes
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/posts', postRoutes);
 
 const __dirname = path.resolve();
 

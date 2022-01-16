@@ -14,7 +14,7 @@ mimeTypes = mimeTypes.map(mimeType => mimeType.trim());
 const uploadPath = process.env.UPLOAD_PATH ?? 'uploads';
 
 
-const fileNameFormat = (file) => `${file.fieldname}-${Date.now()}${uuidV4()}${path.extname(file.originalname)}`
+const fileNameFormat = (file) => `${file.originalname}`
 // Handling file uploads
 const storage = multer.diskStorage({
   destination(req, file, cb) {
@@ -47,7 +47,7 @@ export const uploader = (req, res, next) => {
 
     try {
       const filePath = req?.file !== null ? req?.file?.path : null
-      req.image = filePath;
+      req.file = filePath;
       next();
     } catch (err) {
       fs.unlink(path.join(uploadPath, req?.file), (error) => {
@@ -56,3 +56,27 @@ export const uploader = (req, res, next) => {
     }
   });
 }
+
+// upload multiple files
+export const uploaderMultiple = (req, res, next) => {
+  upload.array('files')(req, res, (error) => {
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    try {
+      const filePath = req?.files !== null ? req?.files.map(file => file.path) : null
+      req.files = filePath;
+      next();
+    } catch (err) {
+      req.files.forEach(file => {
+        fs.unlink(path.join(uploadPath, file), (error) => {
+          if (error) throw Error("Error")
+        })
+      })
+    }
+  });
+} 

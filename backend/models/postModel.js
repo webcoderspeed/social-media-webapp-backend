@@ -70,33 +70,18 @@ const postSchema = mongoose.Schema({
     type: String,
     required: true,
   },
-  image: [
-    {
-      type: String,
-      required: true,
-    }
-  ],
-  video: {
-    type: String,
-  },
+  images: [],
+  videos: [],
   type: {
     type: String,
     required: true,
-    enum: ['image', 'video'],
+    enum: ['image', 'video', 'text'],
+    default: 'text',
   },
   comments: [commentSchema],
   likes: [likeSchema],
   shares: Number,
-  category: {
-    type: String,
-    enum: ['funny', 'sad', 'happy', 'news', 'politics', 'sports', 'entertainment', 'other'],
-  },
-  hashtags: [
-    {
-      type: String,
-      required: true,
-    },
-  ]
+  hashtags: []
 }, {
   timestamps: true,
 });
