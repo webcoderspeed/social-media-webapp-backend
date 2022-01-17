@@ -2,7 +2,6 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidV4 } from 'uuid';
 import dotenv from 'dotenv';
-import asyncHandler from 'express-async-handler'
 import fs from 'node:fs';
 
 dotenv.config()
@@ -14,7 +13,7 @@ mimeTypes = mimeTypes.map(mimeType => mimeType.trim());
 const uploadPath = process.env.UPLOAD_PATH ?? 'uploads';
 
 
-const fileNameFormat = (file) => `${file.originalname}`
+const fileNameFormat = (file) => `${file.fieldname}-${Date.now()}${uuidV4()}${path.extname(file.originalname)}`
 // Handling file uploads
 const storage = multer.diskStorage({
   destination(req, file, cb) {
@@ -72,7 +71,11 @@ export const uploaderMultiple = (req, res, next) => {
       req.files = filePath;
       next();
     } catch (err) {
-      console.log(err)
+      req?.files?.forEach(file => {
+        fs?.unlink(path?.join(uploadPath, file), (error) => {
+          if (error) throw Error(error)
+        })
+      })
     }
   });
 } 

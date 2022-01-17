@@ -82,12 +82,12 @@ export const createPost = asyncHandler(async (req, res, next) => {
   }
 
   const hashtags = caption?.match(/#\w+/g) ?? [];
-  const files = req.files;
+  const files = req?.files;
 
   const uploadedData = [];
 
   if (files && type === 'image') {
-    const promises = files.map(async (image) => {
+    const promises = files?.map(async (image) => {
       const result = await cloudinary.imageUploader(image);
       uploadedData.push(result);
       return result;
@@ -361,14 +361,47 @@ export const deletePost = asyncHandler(async (req, res, next) => {
     });
   }
 
-  await post.remove();
+  if (post.type === 'image') {
+    const promises = post.images.map(async (image) => {
+      await cloudinary.deleteImageOrVideo(image.public_id, post.type);
+    })
 
-  res.status(200).json({
-    success: true,
-    data: {
-      message: 'Post deleted',
-    },
-  });
+    await Promise.all(promises).then(async (result) => {
+      await post.remove();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          message: 'Post deleted',
+        },
+      });
+    }).catch(err => console.log(err));
+
+  } else if (post.type === 'video') {
+    const promises = post.videos.map(async (video) => {
+      await cloudinary.deleteImageOrVideo(video.public_id, post.type);
+    })
+
+    await Promise.all(promises).then(async (result) => {
+      await post.remove();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          message: 'Post deleted',
+        },
+      });
+    }).catch(err => console.log(err));
+  } else {
+    await post.remove();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: 'Post deleted',
+      },
+    });
+  }
 });
 
 
