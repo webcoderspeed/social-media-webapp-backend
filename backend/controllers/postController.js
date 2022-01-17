@@ -1,4 +1,5 @@
 import Post from '../models/postModel.js';
+import User from '../models/userModel.js';
 import asyncHandler from 'express-async-handler';
 import * as cloudinary from '../utils/cloudinary.js';
 
@@ -29,7 +30,6 @@ export const getPosts = asyncHandler(async (req, res, next) => {
     },
   });
 })
-
 
 /**
  * @desc - get a single post
@@ -73,6 +73,13 @@ export const createPost = asyncHandler(async (req, res, next) => {
     caption,
     type,
   } = req.body;
+
+  if (!caption) {
+    return res.status(400).json({
+      success: false,
+      error: 'Caption is required',
+    });
+  }
 
   const hashtags = caption?.match(/#\w+/g) ?? [];
   const files = req.files;
@@ -203,6 +210,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
     type,
   } = req.body;
 
+
   const hashtags = caption?.match(/#\w+/g) ?? [];
 
   const files = req.files;
@@ -210,8 +218,8 @@ export const updatePost = asyncHandler(async (req, res, next) => {
   const uploadedData = [];
 
   if (type === 'image') {
-    
-    if(!files) {
+
+    if (!files) {
       // create a new post
       post.caption = caption ?? post.caption;
       post.type = type ?? post.type;
@@ -227,7 +235,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
         },
       });
     }
-    
+
     const promises = files.map(async (image) => {
       const result = await cloudinary.imageUploader(image, "images");
       uploadedData.push(result);
@@ -262,7 +270,7 @@ export const updatePost = asyncHandler(async (req, res, next) => {
       (err => console.log(err));
   } else if (type === 'video') {
 
-    if(!files) {
+    if (!files) {
       // create a new post
       post.caption = caption ?? post.caption;
       post.type = type ?? post.type;
@@ -359,6 +367,455 @@ export const deletePost = asyncHandler(async (req, res, next) => {
     success: true,
     data: {
       message: 'Post deleted',
+    },
+  });
+});
+
+
+/**
+ * @desc - get post by user id
+ * @route - GET /api/v1/posts/user/:id
+ * @access - public
+*/
+
+export const getPostsByUserId = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  const posts = await Post.find({ userId: user._id });
+
+  if (!posts) {
+    return res.status(404).json({
+      success: false,
+      error: 'No posts found',
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      posts,
+    },
+  });
+});
+
+/**
+ * @desc - comment on a post
+ * @route - POST /api/v1/posts/:id/comment
+ * @access - private
+ */
+
+export const commentOnPost = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const {
+    comment,
+  } = req.body;
+
+  if (!comment) {
+    return res.status(400).json({
+      success: false,
+      error: 'Comment is required',
+    });
+  }
+
+  const newComment = {
+    userId: user._id,
+    postId: post._id,
+    comment,
+  };
+
+  post.comments.push(newComment);
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      comments: post.comments,
+    },
+  });
+});
+
+
+/**
+ * @desc - delete a comment
+ * @route - DELETE /api/v1/posts/:id/comment/:commentId
+ * @access - private
+ */
+
+export const deleteComment = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const comment = post.comments.find(comment => comment._id.toString() === req.params.commentId);
+
+  if (!comment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Comment not found',
+    });
+  }
+
+  if (comment.userId.toString() !== user._id.toString()) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized',
+    });
+  }
+
+  post.comments = post.comments.filter(comment => comment._id.toString() !== req.params.commentId);
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      comments: post.comments,
+    },
+  });
+});
+
+/**
+ * @desc - update a comment
+ * @route - PUT /api/v1/posts/:id/comment/:commentId
+ * @access - private
+ */
+
+export const updateComment = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const comment = post.comments.find(comment => comment._id.toString() === req.params.commentId);
+
+  if (!comment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Comment not found',
+    });
+  }
+
+  if (comment.userId.toString() !== user._id.toString()) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized',
+    });
+  }
+
+  const {
+    comment: updatedComment
+  } = req.body;
+
+  comment.comment = updatedComment ?? comment.comment;
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      comments: post.comments,
+    },
+  });
+});
+
+/**
+ * @desc - reply to a comment
+ * @route - POST /api/v1/posts/:id/comment/:commentId/reply
+ * @access - private
+ */
+
+export const replyToComment = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const comment = post.comments.find(comment => comment._id.toString() === req.params.commentId);
+
+  if (!comment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Comment not found',
+    });
+  }
+
+  const {
+    reply,
+  } = req.body;
+
+  if (!reply) {
+    return res.status(400).json({
+      success: false,
+      error: 'Reply is required',
+    });
+  }
+
+  const newReply = {
+    userId: user._id,
+    commentId: comment._id,
+    reply,
+  };
+
+  comment.replies.push(newReply);
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      replies: comment.replies,
+    },
+  });
+});
+
+/**
+ * @desc - delete a reply
+ * @route - DELETE /api/v1/posts/:id/comment/:commentId/reply/:replyId
+ * @access - private
+ */
+
+export const deleteReply = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const comment = post.comments.find(comment => comment._id.toString() === req.params.commentId);
+
+  if (!comment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Comment not found',
+    });
+  }
+
+  const reply = comment.replies.find(reply => reply._id.toString() === req.params.replyId);
+
+  if (!reply) {
+    return res.status(404).json({
+      success: false,
+      error: 'Reply not found',
+    });
+  }
+
+  if (reply.userId.toString() !== user._id.toString()) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized',
+    });
+  }
+
+  comment.replies = comment.replies.filter(reply => reply._id.toString() !== req.params.replyId);
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      replies: comment.replies,
+    },
+  });
+});
+
+/**
+ * @desc - update a reply
+ * @route - PUT /api/v1/posts/:id/comment/:commentId/reply/:replyId
+ * @access - private
+ */
+
+export const updateReply = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const comment = post.comments.find(comment => comment._id.toString() === req.params.commentId);
+
+  if (!comment) {
+    return res.status(404).json({
+      success: false,
+      error: 'Comment not found',
+    });
+  }
+
+  const reply = comment.replies.find(reply => reply._id.toString() === req.params.replyId);
+
+  if (!reply) {
+    return res.status(404).json({
+      success: false,
+      error: 'Reply not found',
+    });
+  }
+
+  if (reply.userId.toString() !== user._id.toString()) {
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized',
+    });
+  }
+
+  const {
+    reply: updatedReply
+  } = req.body;
+
+  reply.reply = updatedReply ?? reply.reply;
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      replies: comment.replies,
+    },
+  });
+});
+
+/**
+ * @desc - like a post
+ * @route - PUT /api/v1/posts/:id/like
+ * @access - private
+ */
+
+export const likePost = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const like = post.likes.find(like => like.userId.toString() === user._id.toString());
+
+  if (like) {
+    return res.status(400).json({
+      success: false,
+      error: 'Post already liked',
+    });
+  }
+
+  post.likes.push({
+    userId: user._id,
+    postId: post._id,
+  });
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      likes: post.likes,
+    },
+  });
+});
+
+/**
+ * @desc - unlike a post
+ * @route - PUT /api/v1/posts/:id/unlike
+ * @access - private
+ */
+
+export const unlikePost = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  const like = post.likes.find(like => like.userId.toString() === user._id.toString());
+
+  if (!like) {
+    return res.status(400).json({
+      success: false,
+      error: 'Post not liked',
+    });
+  }
+
+  post.likes = post.likes.filter(like => like.userId.toString() !== user._id.toString());
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      likes: post.likes,
+    },
+  });
+});
+
+/** 
+ * @desc - share a post
+ * @route - PUT /api/v1/posts/:id/share
+ * @access - private
+*/
+
+export const sharePost = asyncHandler(async (req, res, next) => {
+  const post = await Post.findById(req.params.id);
+
+  if (!post) {
+    return res.status(404).json({
+      success: false,
+      error: 'Post not found',
+    });
+  }
+
+  post.shares++;
+
+  await post.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      shares: post.shares,
     },
   });
 });

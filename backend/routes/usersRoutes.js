@@ -6,8 +6,10 @@ import {
   protect
 } from '../middlewares/authMiddleware.js';
 import {
-  uploader
+  uploader,
+  uploaderMultiple
 } from '../middlewares/uploadMiddleware.js'
+
 
 // register a new user route
 router
@@ -24,6 +26,8 @@ router
   .put(protect, uploader, userController.updateMyProfile)
   .delete(protect, userController.deleteMyProfile);
 
+// add and get story
+router.route('/stories').put(protect, uploaderMultiple, userController.createStory).get(protect, userController.getStories);
 
 // get user followers
 router
@@ -52,6 +56,10 @@ router
   .get(userController.getUserByUsername)
 
 
+// mutation in story
+router.route('/stories/:id')
+  .get(protect, userController.getSingleStory)
+  .delete(protect, userController.deleteStory)
 
 
 

@@ -4,7 +4,6 @@ import User from '../models/userModel.js';
 import sendEmail from '../utils/emailSender.js';
 import crypto from 'crypto';
 import * as cloudinary from '../utils/cloudinary.js';
-import mongoose from 'mongoose';
 
 /**
  * @desc   Register a new user and generate token
@@ -452,7 +451,6 @@ export const unfollowUser = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 /**
  * @desc  Get user followers list
  * @route GET /api/v1/users/followers/:username
@@ -475,10 +473,12 @@ export const getFollowers = asyncHandler(async (req, res, next) => {
     _id: {
       $in: user.followers.map((follower) => follower.userId),
     },
-  }).select('-password -__v -createdAt -updatedAt -isAdmin').populate({
-    path: 'followers',
-    model: 'User',
-  });
+  })
+    .select('-password -__v -createdAt -updatedAt -isAdmin')
+    .populate({
+      path: 'followers',
+      model: 'User',
+    });
 
   res.status(200).json({
     status: 'success',
@@ -510,10 +510,12 @@ export const getFollowings = asyncHandler(async (req, res, next) => {
     _id: {
       $in: user.followings.map((following) => following.userId),
     },
-  }).select('-password -__v -createdAt -updatedAt -isAdmin').populate({
-    path: 'followings',
-    model: 'User',
-  });
+  })
+    .select('-password -__v -createdAt -updatedAt -isAdmin')
+    .populate({
+      path: 'followings',
+      model: 'User',
+    });
 
   res.status(200).json({
     status: 'success',
@@ -576,7 +578,6 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
  */
 
 export const resetPassword = asyncHandler(async (req, res, next) => {
-
   // get user based on the token
 
   const hashedToken = crypto
@@ -629,3 +630,278 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc - create stories
+ * @route - PUT /api/v1/users/stories
+ * @access - private
+ */
+
+export const createStory = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  const { caption, type } = req.body;
+
+  if (!caption) {
+    return res.status(400).json({
+      success: false,
+      error: 'Caption is required',
+    });
+  }
+
+  const hashtags = caption?.match(/#\w+/g) ?? [];
+  const files = req.files;
+
+  const uploadedData = [];
+
+  if (files && type === 'image') {
+    const promises = files.map(async (image) => {
+      const result = await cloudinary.imageUploader(image);
+      uploadedData.push(result);
+      return result;
+    });
+
+    await Promise.all(promises)
+      .then((result) => {
+        const images = result.map((image) => {
+          return {
+            asset_id: image.public_id,
+            public_id: image.public_id,
+            url: image.url,
+            secure_url: image.secure_url,
+          };
+        });
+
+        const story = {
+          caption,
+          type,
+          images,
+          hashtags,
+          userId: user._id,
+        };
+
+        user.stories.push(story);
+
+        user.save();
+
+        // return the user
+        res.status(201).json({
+          success: true,
+          data: {
+            data: user.stories,
+          },
+        });
+      })
+      .catch((err) => console.log(err));
+  } else if (files && type === 'video') {
+    const promises = files.map(async (video) => {
+      const result = await cloudinary.videoUploader(video, 'videos', type);
+      uploadedData.push(result);
+      return result;
+    });
+
+    await Promise.all(promises)
+      .then((result) => {
+        const videos = result.map((video) => {
+          return {
+            asset_id: video.public_id,
+            public_id: video.public_id,
+            url: video.url,
+            secure_url: video.secure_url,
+          };
+        });
+
+        const story = {
+          caption,
+          type,
+          videos,
+          hashtags,
+          userId: user._id,
+        };
+
+        user.stories.push(story);
+
+        user.save();
+
+        // return the story
+        res.status(201).json({
+          success: true,
+          data: {
+            data: user.stories,
+          },
+        });
+      })
+      .catch((err) => console.log(err));
+  } else {
+    // create a new story
+
+    const story = {
+      caption,
+      type,
+      hashtags,
+      userId: user._id,
+    };
+
+    user.stories.push(story);
+
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      data: user.stories,
+    });
+  }
+});
+
+/**
+ * @desc - get stories
+ * @route - GET /api/v1/users/stories
+ * @access - private
+ */
+
+export const getStories = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: user.stories,
+  });
+});
+
+/**
+ * @desc - get single story
+ * @route - GET /api/v1/users/stories/:id
+ * @access - private
+ */
+
+export const getSingleStory = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  const story = user.stories.find((story) => story._id == req.params.id);
+
+  if (!story) {
+    return res.status(404).json({
+      success: false,
+      error: 'Story not found',
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: story,
+  });
+});
+
+/**
+ * @desc - delete story after 24 hours
+ * @route - DELETE /api/v1/users/stories/:id
+ * @access - private
+ */
+
+export const deleteStory = asyncHandler(async (req, res, next) => {
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  const story = user.stories.find((story) => story._id == req.params.id);
+
+  if (!story) {
+    return res.status(404).json({
+      success: false,
+      error: 'Story not found',
+    });
+  }
+
+  user.stories = user.stories.filter((story) => story._id != req.params.id);
+
+  await user.save();
+
+  if (story.type === 'image') {
+    const promises = story.images.map(async (image) => {
+      const result = await cloudinary.deleteImageOrVideo(image.public_id, story.type);
+      return result;
+    });
+
+    await Promise.all(promises)
+      .then((result) => {
+        console.log(result);
+      }).catch((err) => console.log(err));
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: user.stories,
+    });
+  } else if (story.type === 'video') {
+    const promises = story.videos.map(async (video) => {
+      const result = await cloudinary.deleteImageOrVideo(video.public_id, story.type);
+      return result;
+    });
+
+    await Promise.all(promises)
+      .then((result) => {
+        console.log(result);
+      }).catch((err) => console.log(err));
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: user.stories,
+    });
+  } else {
+
+    res.status(200).json({
+      success: true,
+      data: user.stories,
+    });
+  }
+});
+
+/**
+ * @desc - get stories by user ID
+ * @route - GET /api/v1/users/:id/stories
+ * @access - private
+ */
+
+export const getStoriesByUserId = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      error: 'User not found',
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: user.stories,
+  });
+});

@@ -21,9 +21,12 @@ export const imageUploader = async (file, foldername) => {
   }
 }
 
-export const deleteImageOrVideo = async (publicId) => {
+export const deleteImageOrVideo = async (publicId, type) => {
   try {
-    const result = await cloudinary.v2.uploader.destroy(publicId);
+    const result = await cloudinary.v2.api.delete_resources([publicId], {
+      invalidate: true,
+      resource_type: type
+    });
     return result;
   } catch (error) {
     throw new Error(error);
@@ -40,7 +43,7 @@ export const imageUrlGenerator = async (publicId) => {
   }
 }
 
-export const videoUploader = async (file, foldername,type) => {
+export const videoUploader = async (file, foldername, type) => {
   try {
     const result = await cloudinary.v2.uploader.upload(file, { resource_type: type, folder: foldername ?? 'videos' });
     return result;

@@ -68,15 +68,11 @@ export const uploaderMultiple = (req, res, next) => {
     }
 
     try {
-      const filePath = req?.files !== null ? req?.files.map(file => file.path) : null
+      const filePath = req?.files !== null ? req?.files?.map(file => file.path) : null
       req.files = filePath;
       next();
     } catch (err) {
-      req.files.forEach(file => {
-        fs.unlink(path.join(uploadPath, file), (error) => {
-          if (error) throw Error("Error")
-        })
-      })
+      console.log(err)
     }
   });
 } 

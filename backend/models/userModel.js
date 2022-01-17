@@ -14,7 +14,6 @@ const followersSchema = mongoose.Schema({
   }
 });
 
-
 const followingSchema = mongoose.Schema({
   userId: {
     type: ObjectId,
@@ -23,7 +22,28 @@ const followingSchema = mongoose.Schema({
   }
 });
 
-
+const storiesSchema = mongoose.Schema({
+  userId: {
+    type: ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  caption: {
+    type: String,
+    required: true,
+  },
+  images: [],
+  videos: [],
+  type: {
+    type: String,
+    required: true,
+    enum: ['image', 'video', 'text'],
+    default: 'text',
+  },
+  hashtags: [],
+}, {
+  timestamps: true,
+});
 
 const userSchema = mongoose.Schema({
   userId: {
@@ -81,6 +101,7 @@ const userSchema = mongoose.Schema({
   },
   passwordResetToken: String,
   passwordResetExpires: Date,
+  stories: [storiesSchema],
 }, {
   timestamps: true,
 });

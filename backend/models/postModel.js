@@ -80,8 +80,11 @@ const postSchema = mongoose.Schema({
   },
   comments: [commentSchema],
   likes: [likeSchema],
-  shares: Number,
-  hashtags: []
+  shares: {
+    type: Number,
+    default: 0,
+  },
+  hashtags: [],
 }, {
   timestamps: true,
 });
